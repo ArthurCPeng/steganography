@@ -13,7 +13,6 @@ frame3 = Frame(root)
 
 chosen_file_directory = ""
 
-
 def decode(directory, password):
         
     image = cv2.imread(directory)
@@ -23,17 +22,20 @@ def decode(directory, password):
     message_binary = ""
     message_text = ""
 
+    #Extract the message (including password and metadata) in binary form
     for number in image:
         number = int(number)
-        unit_info = format(number, "b")[-2:]
+        unit_info = format(number, "b")[-2:] #The last two digits of each pixel value (8-digit binary number) comprises part of the message.
         message_binary += unit_info
 
+    #Extract the message in string form, by going through all 8-character blocks
     for i in range(int(len(message_binary)/8)-1):
         letter_binary = message_binary[i*8:(i+1)*8]
         letter_ascii = int(letter_binary, 2)
         letter_char = chr(letter_ascii)
         message_text += letter_char
 
+    #Extract message length and password length 
     message_length = int(message_text[:8])
     password_length = int(message_text[8:12])
     password_true = message_text[12:12+password_length]
@@ -76,13 +78,13 @@ def encode(directory, message, password):
     #Concatenate password to the messsage
     message = password + message 
 
-    #Insert data on password length
+    #Insert data on password length. The password can be 9999 characters at the longest. 
     password_length_string = str(len(password))
     if(len(password_length_string) < 4):
         password_length_string = (4-len(password_length_string)) * "0" + password_length_string
     message = password_length_string + message
 
-    #Insert metadata on message length
+    #Insert metadata on message length. The message can be 99999999 characters at the longest. 
     message_length_string = str(len(message))
     if(len(message_length_string) < 8):
         message_length_string = (8-len(message_length_string)) * "0" + message_length_string
@@ -96,24 +98,26 @@ def encode(directory, message, password):
         message_binary += letter_binary #Add the binary representation of the letter to the binary message
 
     #Encode the message into the image.
+    #The message is split into 2-digit blocks. Each 2-digit block (00, 01, 10, 11) is added to one pixel.
     for i in range(int(len(message_binary) / 2)):
         unit_index = i
-        unit_info = message_binary[i*2:(i+1)*2] 
-
+        unit_info = message_binary[i*2:(i+1)*2] #A 2-digit binary number (still in string form), the smallest unit of encoding
         
         unit_c = i % c
         unit_w = int(i / c) % w
         unit_h = int(i / (c*w))
 
+        #The value of each pixel (0-255) is converted to an 8-digit binary number.
         unit_pixel_org = image_org[unit_h, unit_w, unit_c]
         unit_pixel_org_binary = format(unit_pixel_org, "b")
         unit_pixel_org_binary_string = str(format(unit_pixel_org, "b"))
         if(len(unit_pixel_org_binary_string) < 8):
             unit_pixel_org_binary_string = "0" * (8-len(unit_pixel_org_binary_string)) + unit_pixel_org_binary_string
-                                                  
+
+        #The last two digits of the binary pixel value is replaced by the 2-digit binary number taken from the message.                                          
         unit_pixel_new_binary_string = unit_pixel_org_binary_string[0:6] + unit_info
 
-        image_new[unit_h][unit_w][unit_c] = int(unit_pixel_new_binary_string, 2)
+        image_new[unit_h][unit_w][unit_c] = int(unit_pixel_new_binary_string, 2) #Convert the 2-digit binary number into one decimal digit
 
     cv2.imwrite(os.path.splitext(directory)[0] +"_EMBEDDED.png", image_new)
     return True
